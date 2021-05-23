@@ -15,6 +15,7 @@ let
     ghc
     nixpkgs.haskellPackages.haskell-language-server
     nixpkgs.haskellPackages.hlint
+    nixpkgs.haskellPackages.apply-refact
     nixpkgs.haskellPackages.hoogle
   ];
 in
