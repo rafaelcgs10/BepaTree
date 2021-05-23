@@ -14,7 +14,7 @@ Install nix and run `nix-shell shell.nix`
 Run
 
 ``` sh
-ghci BepaTree.hs
+ghci NoBepaTree.hs
 ```
 
 and call the tests with `quickCheck`.
