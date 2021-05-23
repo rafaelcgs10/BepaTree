@@ -5,7 +5,6 @@ let
 
   haskellDeps = ps: with ps; [
     base
-    gdp
     QuickCheck
   ];
 
