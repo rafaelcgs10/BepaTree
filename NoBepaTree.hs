@@ -19,21 +19,19 @@ data Tree = Tree_TypeA NodeInfo String [Tree] | Tree_TypeB TypeB deriving (Show,
 data TypeB = TypeB Cost NodeName [TypeB] deriving (Show, Eq, Ord)
 
 getCommonNodeNamesExceptBepa :: Tree -> Tree -> [NodeName]
-getCommonNodeNamesExceptBepa tree1 tree2 = Set.toList (Set.intersection (getNodeNamesTreeExceptBepa tree1) (getNodeNamesTreeExceptBepa tree2))
+getCommonNodeNamesExceptBepa tree1 tree2 = Set.toList $ Set.intersection (getNodeNamesTreeExceptBepa tree1) (getNodeNamesTreeExceptBepa tree2)
 
 nodeNameConstainsBepa (NodeName string) = isInfixOf "Bepa" string
 
 getNodeNamesTreeExceptBepa :: Tree -> Set NodeName
-getNodeNamesTreeExceptBepa (Tree_TypeA nodeInfo _ listTree) = let nodeName = (nodeInfoName nodeInfo) in
+getNodeNamesTreeExceptBepa (Tree_TypeA nodeInfo _ listTree) = let nodeName = nodeInfoName nodeInfo in
   if nodeNameConstainsBepa nodeName
-  then
-  getNodeNamesListTreeExceptBepa listTree
-  else
-  Set.insert nodeName (getNodeNamesListTreeExceptBepa listTree)
+  then getNodeNamesListTreeExceptBepa listTree
+  else Set.insert nodeName (getNodeNamesListTreeExceptBepa listTree)
 getNodeNamesTreeExceptBepa (Tree_TypeB typeB) = getNodeNamesTypeBExceptBepa typeB
 
 getNodeNamesListTreeExceptBepa :: [Tree] -> Set NodeName
-getNodeNamesListTreeExceptBepa (x:xs) = Set.union (getNodeNamesTreeExceptBepa x) $ getNodeNamesListTreeExceptBepa xs
+getNodeNamesListTreeExceptBepa (x:xs) = Set.union (getNodeNamesTreeExceptBepa x) (getNodeNamesListTreeExceptBepa xs)
 getNodeNamesListTreeExceptBepa [] = Set.empty
 
 getNodeNamesTypeBExceptBepa :: TypeB -> Set NodeName
@@ -42,7 +40,7 @@ getNodeNamesTypeBExceptBepa (TypeB _ nodeName listTypeB) = if nodeNameConstainsB
   else Set.insert nodeName (getNodeNamesListTypeBExceptBepa listTypeB)
 
 getNodeNamesListTypeBExceptBepa :: [TypeB] -> Set NodeName
-getNodeNamesListTypeBExceptBepa (x:xs) = Set.union (getNodeNamesTypeBExceptBepa x) $ getNodeNamesListTypeBExceptBepa xs
+getNodeNamesListTypeBExceptBepa (x:xs) = Set.union (getNodeNamesTypeBExceptBepa x) (getNodeNamesListTypeBExceptBepa xs)
 getNodeNamesListTypeBExceptBepa [] = Set.empty
 
 -- End of part 1 of the task
@@ -168,7 +166,7 @@ getNodeNamesTypeBUnsafe :: TypeB -> Set NodeName
 getNodeNamesTypeBUnsafe (TypeB _ nodeName listTypeB) = Set.insert nodeName (getNodeNamesListBUnsafe listTypeB)
 
 getNodeNamesListBUnsafe :: [TypeB] -> Set NodeName
-getNodeNamesListBUnsafe (x:xs) = Set.union (getNodeNamesTypeBUnsafe x) $ getNodeNamesListBUnsafe xs
+getNodeNamesListBUnsafe (x:xs) = Set.union (getNodeNamesTypeBUnsafe x) (getNodeNamesListBUnsafe xs)
 getNodeNamesListBUnsafe [] = Set.empty
 
 -- Can't use not proved Bepa free data here
@@ -182,7 +180,7 @@ getNodeNamesTreeUnsafe (Tree_TypeA nodeInfo _ listTree) = case (nodeInfoName nod
 getNodeNamesTreeUnsafe (Tree_TypeB typeB) = getNodeNamesTypeBUnsafe typeB
 
 getNodeNamesListTreeUnsafe :: [Tree] -> Set NodeName
-getNodeNamesListTreeUnsafe (x:xs) = Set.union (getNodeNamesTreeUnsafe x) $ getNodeNamesListTreeUnsafe xs
+getNodeNamesListTreeUnsafe (x:xs) = Set.union (getNodeNamesTreeUnsafe x) (getNodeNamesListTreeUnsafe xs)
 getNodeNamesListTreeUnsafe [] = Set.empty
 
 useNoBepaProvedGetNodeNamesTypeB typeB =
