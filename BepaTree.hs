@@ -1,6 +1,10 @@
+{-# LANGUAGE RoleAnnotations #-}
+{-# LANGUAGE TypeOperators   #-}
+
 import qualified Data.Set as Set
 import Data.Set (fromList, Set)
 import Test.QuickCheck
+import GDP
 
 data NodeInfo = NodeInfo { cost :: Cost
                          , nodeInfoName :: NodeName
@@ -108,3 +112,83 @@ prop_elem_only_one tree1 tree2 = elem nodeName result_1 ==> not (elem nodeName r
     result_2 = getNodeNamesTreeExceptBepa tree2
     result_3 = getCommonNodeNamesExceptBepa tree1 tree2
     nodeName = NodeName "SomeString"
+
+-- Now using GDP to guarantee that getNodeNames is never used in tree with Bepa
+
+-- Must not export this
+newtype NoBepa tree = NoBepa Defn
+type role NoBepa nominal
+
+-- Must export this
+noBepaValidatorTypeB :: TypeB -> Either String (TypeB ~~ NoBepa validated)
+noBepaValidatorTypeB tree = case (checkBepaTypeB tree) of
+  True -> Left "Error: contains Bepa"
+  False -> Right $ defn tree
+
+checkBepaTypeB :: TypeB -> Bool
+checkBepaTypeB (TypeB _ nodeName listTree) = case nodeName of
+  (NodeName "Bepa") -> True
+  nodeName -> foldl validation False listTree
+  where
+    validation b t = checkBepaTypeB t || b
+
+noBepaValidatorTree :: Tree -> Either String (Tree ~~ NoBepa validated)
+noBepaValidatorTree tree = case (checkBepaTree tree) of
+  True -> Left "Error: contains Bepa"
+  False -> Right $ defn tree
+
+checkBepaTree :: Tree -> Bool
+checkBepaTree (Tree_TypeA nodeInfo _ listTree)  = case (nodeInfoName nodeInfo) of
+  (NodeName "Bepa") -> True
+  nodeName -> foldl validation False listTree
+  where
+    validation b t = checkBepaTree t || b
+checkBepaTree (Tree_TypeB typeB) = checkBepaTypeB typeB
+
+-- Can't use not proved Bepa free data here
+getNodeNamesTypeB :: (TypeB ~~ NoBepa validated) -> Set NodeName
+getNodeNamesTypeB (The typeB) = getNodeNamesTypeBUnsafe typeB
+
+-- Must not export this because it is unsafe
+getNodeNamesTypeBUnsafe :: TypeB -> Set NodeName
+getNodeNamesTypeBUnsafe (TypeB _ nodeName listTypeB) = Set.insert nodeName (getNodeNamesListBUnsafe listTypeB)
+
+getNodeNamesListBUnsafe :: [TypeB] -> Set NodeName
+getNodeNamesListBUnsafe (x:xs) = Set.union (getNodeNamesTypeBUnsafe x) $ getNodeNamesListBUnsafe xs
+getNodeNamesListBUnsafe [] = Set.empty
+
+-- Can't use not proved Bepa free data here
+getNodeNamesTree :: (Tree ~~ NoBepa validated) -> Set NodeName
+getNodeNamesTree (The tree) = getNodeNamesTreeUnsafe tree
+
+-- Must not export this because it is unsafe
+getNodeNamesTreeUnsafe :: Tree -> Set NodeName
+getNodeNamesTreeUnsafe (Tree_TypeA nodeInfo _ listTree) = case (nodeInfoName nodeInfo) of
+  nodeName -> Set.insert nodeName (getNodeNamesListTreeUnsafe listTree)
+getNodeNamesTreeUnsafe (Tree_TypeB typeB) = getNodeNamesTypeBUnsafe typeB
+
+getNodeNamesListTreeUnsafe :: [Tree] -> Set NodeName
+getNodeNamesListTreeUnsafe (x:xs) = Set.union (getNodeNamesTreeUnsafe x) $ getNodeNamesListTreeUnsafe xs
+getNodeNamesListTreeUnsafe [] = Set.empty
+
+useNoBepaProvedGetNodeNamesTypeB typeB =
+  case noBepaValidatorTypeB typeB of
+    Left e -> Left e
+    Right provedNoBepa  -> Right $ getNodeNamesTypeB provedNoBepa
+
+useNoBepaProvedGetNodeNamesTree tree =
+  case noBepaValidatorTree tree of
+    Left e -> Left e
+    Right provedNoBepa  -> Right $ getNodeNamesTree provedNoBepa
+
+prop_proved_no_Bepa_getNodeNamesTypeB tree = withMaxSuccess 5000 $ result === False
+  where
+    result = case useNoBepaProvedGetNodeNamesTypeB tree of
+      Left _ -> False
+      Right nodeNames -> elem (NodeName "Bepa") nodeNames
+
+prop_proved_no_Bepa_getNodeNamesTree tree = withMaxSuccess 5000 $ result === False
+  where
+    result = case useNoBepaProvedGetNodeNamesTree tree of
+      Left _ -> False
+      Right nodeNames -> elem (NodeName "bepa") nodeNames
