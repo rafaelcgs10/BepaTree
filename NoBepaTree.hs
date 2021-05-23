@@ -59,7 +59,13 @@ instance Arbitrary NodeInfo where
 instance Arbitrary NodeName where
   arbitrary = do
     someString <- resize 3 arbitrary
-    name <- frequency [(4, return someString), (1, return "SomeString"), (1, return (someString ++ "_Bepa_" ++ someString)), (1, return (someString ++ "_bepa_" ++ someString))]
+    name <-
+      frequency
+        [ (4, return someString),
+          (1, return "SomeString"),
+          (1, return (someString ++ "_Bepa_" ++ someString)),
+          (1, return (someString ++ "_bepa_" ++ someString))
+        ]
     return (NodeName name)
 
 instance Arbitrary TypeB where
