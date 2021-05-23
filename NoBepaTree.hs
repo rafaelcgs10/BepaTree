@@ -1,6 +1,7 @@
 {-# LANGUAGE RoleAnnotations #-}
 {-# LANGUAGE TypeOperators   #-}
 
+import Data.List (isInfixOf)
 import qualified Data.Set as Set
 import Data.Set (fromList, Set)
 import Test.QuickCheck
@@ -20,10 +21,15 @@ data TypeB = TypeB Cost NodeName [TypeB] deriving (Show, Eq, Ord)
 getCommonNodeNamesExceptBepa :: Tree -> Tree -> [NodeName]
 getCommonNodeNamesExceptBepa tree1 tree2 = Set.toList (Set.intersection (getNodeNamesTreeExceptBepa tree1) (getNodeNamesTreeExceptBepa tree2))
 
+nodeNameConstainsBepa (NodeName string) = isInfixOf "Bepa" string
+
 getNodeNamesTreeExceptBepa :: Tree -> Set NodeName
-getNodeNamesTreeExceptBepa (Tree_TypeA nodeInfo _ listTree) = case (nodeInfoName nodeInfo) of
-  (NodeName "Bepa") -> getNodeNamesListTreeExceptBepa listTree
-  nodeName -> Set.insert nodeName (getNodeNamesListTreeExceptBepa listTree)
+getNodeNamesTreeExceptBepa (Tree_TypeA nodeInfo _ listTree) = let nodeName = (nodeInfoName nodeInfo) in
+  if nodeNameConstainsBepa nodeName
+  then
+  getNodeNamesListTreeExceptBepa listTree
+  else
+  Set.insert nodeName (getNodeNamesListTreeExceptBepa listTree)
 getNodeNamesTreeExceptBepa (Tree_TypeB typeB) = getNodeNamesTypeBExceptBepa typeB
 
 getNodeNamesListTreeExceptBepa :: [Tree] -> Set NodeName
@@ -31,8 +37,9 @@ getNodeNamesListTreeExceptBepa (x:xs) = Set.union (getNodeNamesTreeExceptBepa x)
 getNodeNamesListTreeExceptBepa [] = Set.empty
 
 getNodeNamesTypeBExceptBepa :: TypeB -> Set NodeName
-getNodeNamesTypeBExceptBepa (TypeB _ (NodeName "Bepa") listTypeB) = getNodeNamesListTypeBExceptBepa listTypeB
-getNodeNamesTypeBExceptBepa (TypeB _ nodeName listTypeB) = Set.insert nodeName (getNodeNamesListTypeBExceptBepa listTypeB)
+getNodeNamesTypeBExceptBepa (TypeB _ nodeName listTypeB) = if nodeNameConstainsBepa nodeName
+  then getNodeNamesListTypeBExceptBepa listTypeB
+  else Set.insert nodeName (getNodeNamesListTypeBExceptBepa listTypeB)
 
 getNodeNamesListTypeBExceptBepa :: [TypeB] -> Set NodeName
 getNodeNamesListTypeBExceptBepa (x:xs) = Set.union (getNodeNamesTypeBExceptBepa x) $ getNodeNamesListTypeBExceptBepa xs
@@ -48,7 +55,8 @@ instance Arbitrary NodeInfo where
 
 instance Arbitrary NodeName where
   arbitrary = do
-    name <- frequency [(4, arbitrary), (1, return "SomeString"), (1, return "Bepa"), (1, return "bepa")]
+    someString <- resize 3 arbitrary
+    name <- frequency [(4, return someString), (1, return "SomeString"), (1, return (someString ++ "_Bepa_" ++ someString)), (1, return (someString ++ "_bepa_" ++ someString))]
     return (NodeName name)
 
 instance Arbitrary TypeB where
@@ -81,14 +89,20 @@ genTree size = frequency [(4, genTypeA), (1, genLeafTypeA), (4, genTypeB)]
       treeB <- arbitrary
       return (Tree_TypeB treeB)
 
-prop_there_is_pepa = forAll (resize 10 arbitrary) $ \tree1 tree2 ->
-  let result = getCommonNodeNamesExceptBepa tree1 tree2 in elem (NodeName "bepa") result === False
+noBepaInResultSet result = Set.filter nodeNameConstainsBepa result === Set.empty
 
-prop_no_Bepa_getNodeNamesBExceptBepa tree = withMaxSuccess 1000 $ ( elem (NodeName "Bepa") result ) === False
+nodeNameConstains_bepa (NodeName string) = isInfixOf "bepa" string
+nobepaInResultList result = filter nodeNameConstains_bepa result === []
+
+-- This test should fail
+prop_there_is_pepa_lower_case = forAll (resize 10 arbitrary) $ \tree1 tree2 ->
+  let result = getCommonNodeNamesExceptBepa tree1 tree2 in nobepaInResultList result
+
+prop_no_Bepa_getNodeNamesTypeBExceptBepa tree = withMaxSuccess 200 $ noBepaInResultSet result
   where
     result = getNodeNamesTypeBExceptBepa tree
 
-prop_no_Bepa_getNodeNamesExceptBepa tree = withMaxSuccess 1000 $ ( elem (NodeName "Bepa") result ) === False
+prop_no_Bepa_getNodeNamesTreeExceptBepa tree = withMaxSuccess 200 $ noBepaInResultSet result
   where
     result = getNodeNamesTreeExceptBepa tree
 
@@ -126,9 +140,9 @@ noBepaValidatorTypeB tree = case (checkBepaTypeB tree) of
   False -> Right $ defn tree
 
 checkBepaTypeB :: TypeB -> Bool
-checkBepaTypeB (TypeB _ nodeName listTree) = case nodeName of
-  (NodeName "Bepa") -> True
-  nodeName -> foldl validation False listTree
+checkBepaTypeB (TypeB _ nodeName listTree) = case nodeNameConstainsBepa nodeName of
+  True -> True
+  False -> foldl validation False listTree
   where
     validation b t = checkBepaTypeB t || b
 
@@ -138,9 +152,9 @@ noBepaValidatorTree tree = case (checkBepaTree tree) of
   False -> Right $ defn tree
 
 checkBepaTree :: Tree -> Bool
-checkBepaTree (Tree_TypeA nodeInfo _ listTree)  = case (nodeInfoName nodeInfo) of
-  (NodeName "Bepa") -> True
-  nodeName -> foldl validation False listTree
+checkBepaTree (Tree_TypeA nodeInfo _ listTree)  = case nodeNameConstainsBepa (nodeInfoName nodeInfo) of
+  True -> True
+  False -> foldl validation False listTree
   where
     validation b t = checkBepaTree t || b
 checkBepaTree (Tree_TypeB typeB) = checkBepaTypeB typeB
@@ -181,14 +195,14 @@ useNoBepaProvedGetNodeNamesTree tree =
     Left e -> Left e
     Right provedNoBepa  -> Right $ getNodeNamesTree provedNoBepa
 
-prop_proved_no_Bepa_getNodeNamesTypeB tree = withMaxSuccess 5000 $ result === False
+prop_proved_no_Bepa_getNodeNamesTypeB tree = withMaxSuccess 5000 $ result
   where
     result = case useNoBepaProvedGetNodeNamesTypeB tree of
-      Left _ -> False
-      Right nodeNames -> elem (NodeName "Bepa") nodeNames
+      Right nodeNames -> noBepaInResultSet nodeNames
+      Left _ -> 1 === 1
 
-prop_proved_no_Bepa_getNodeNamesTree tree = withMaxSuccess 5000 $ result === False
+prop_proved_no_Bepa_getNodeNamesTree tree = withMaxSuccess 5000 $ result
   where
     result = case useNoBepaProvedGetNodeNamesTree tree of
-      Left _ -> False
-      Right nodeNames -> elem (NodeName "bepa") nodeNames
+      Right nodeNames -> noBepaInResultSet nodeNames
+      Left _ -> 1 === 1
