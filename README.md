@@ -10,7 +10,7 @@ Instal GHC and Cabal, and using cabal install QuickCheck and GDP from Hackage.
 ### Option 2:
 Install nix and run `nix-shell shell.nix`
 
-## How to setup this:
+## How to run this:
 Run
 
 ``` sh
